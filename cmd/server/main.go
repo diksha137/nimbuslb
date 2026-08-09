@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/diksha137/nimbuslb/internal/backend"
@@ -46,7 +50,9 @@ func main() {
 
 	healthChecker.Start()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		selected := lb.NextBackend()
 
 		if selected == nil {
@@ -70,10 +76,51 @@ func main() {
 
 	address := fmt.Sprintf(":%d", cfg.Server.Port)
 
-	log.Printf(
-		"NimbusLB listening on %s",
-		address,
+	server := &http.Server{
+		Addr:    address,
+		Handler: mux,
+
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
+	}
+
+	go func() {
+		log.Printf(
+			"NimbusLB listening on %s",
+			address,
+		)
+
+		if err := server.ListenAndServe(); err != nil &&
+			err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+
+	signal.Notify(
+		stop,
+		os.Interrupt,
+		syscall.SIGTERM,
 	)
 
-	log.Fatal(http.ListenAndServe(address, nil))
+	<-stop
+
+	log.Println("Shutdown signal received")
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		10*time.Second,
+	)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf(
+			"Graceful shutdown failed: %v",
+			err,
+		)
+	}
+
+	log.Println("NimbusLB shutdown complete")
 }
