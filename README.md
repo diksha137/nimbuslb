@@ -4,7 +4,7 @@ A production-oriented HTTP load balancer written in Go.
 
 NimbusLB distributes HTTP traffic across multiple backend servers using round-robin scheduling, continuously monitors backend health, automatically avoids unhealthy instances, and exposes operational metrics.
 
-The project was built to explore practical systems programming concepts including concurrency, networking, fault tolerance, reverse proxies, health checking, graceful shutdown, observability, testing, benchmarking, and containerized deployment.
+The project explores practical systems-programming concepts including **concurrency, networking, fault tolerance, reverse proxies, health checking, graceful shutdown, observability, testing, benchmarking, and containerized deployment**.
 
 ---
 
@@ -41,18 +41,17 @@ The project was built to explore practical systems programming concepts includin
 
 ---
 
-## Features
+## Key Features
 
-* HTTP reverse proxy
+* HTTP reverse proxy using Go's `httputil.ReverseProxy`
 * Round-robin load balancing
-* Concurrent backend selection
+* Thread-safe backend selection
 * Periodic backend health checks
 * Automatic unhealthy-backend exclusion
 * Backend failure handling
-* `502 Bad Gateway` handling for failed proxy requests
-* `503 Service Unavailable` when no healthy backend exists
+* `503 Service Unavailable` when no healthy backend is available
 * Request ID middleware
-* Request logging
+* Structured request logging
 * Request and backend metrics
 * Graceful HTTP server shutdown
 * YAML-based configuration
@@ -82,6 +81,10 @@ NimbusLB/
 │   ├── config.yaml
 │   └── config.docker.yaml
 │
+├── docs/
+│   ├── architecture.md
+│   └── design-decisions.md
+│
 ├── internal/
 │   ├── backend/
 │   ├── balancer/
@@ -106,9 +109,9 @@ NimbusLB/
 
 ## How It Works
 
-### 1. Request Routing
+### Request Routing
 
-Incoming HTTP requests are received by NimbusLB.
+Incoming HTTP requests are received by NimbusLB and passed through middleware before reaching the load-balancing layer.
 
 The load balancer selects the next healthy backend using round-robin scheduling.
 
@@ -123,11 +126,11 @@ Unhealthy backends are skipped automatically.
 
 ---
 
-### 2. Health Checking
+### Health Checking
 
 NimbusLB periodically checks configured backend servers.
 
-For example:
+When both backends are healthy:
 
 ```text
 Backend A → healthy
@@ -141,17 +144,17 @@ Backend A → healthy
 Backend B → unhealthy
 ```
 
-Traffic is then routed only to Backend A.
+traffic is routed only to Backend A.
 
-When Backend B becomes healthy again, it can rejoin the rotation.
+When Backend B recovers, it becomes eligible for future requests again.
 
 ---
 
-### 3. Reverse Proxy
+### Reverse Proxy
 
-NimbusLB uses Go's HTTP reverse-proxy functionality to forward incoming requests to the selected backend.
+NimbusLB uses Go's `httputil.ReverseProxy` to forward requests to the selected backend.
 
-The client communicates with NimbusLB rather than directly accessing the backend servers.
+The client communicates with NimbusLB rather than directly accessing backend servers.
 
 ```text
 Client
@@ -163,13 +166,15 @@ NimbusLB
 Selected Backend
 ```
 
+This keeps backend selection and health management separate from the HTTP proxy implementation.
+
 ---
 
-### 4. Failure Handling
+### Failure Handling
 
-NimbusLB distinguishes between different failure conditions.
+NimbusLB treats backend failures as expected operational conditions.
 
-If a backend cannot successfully handle a proxied request, the request fails rather than allowing the load balancer process to crash.
+If a backend becomes unhealthy, it is removed from the routing rotation.
 
 If no healthy backend is available, NimbusLB returns:
 
@@ -177,7 +182,7 @@ If no healthy backend is available, NimbusLB returns:
 503 Service Unavailable
 ```
 
-This allows the load balancer to remain available even when backend services fail.
+The load-balancer process itself remains running.
 
 ---
 
@@ -202,7 +207,7 @@ backends:
     url: http://localhost:9002
 ```
 
-Docker uses a separate configuration because Docker services communicate using Docker's internal service names:
+Docker uses a separate configuration because containers communicate using Docker service names:
 
 ```yaml
 server:
@@ -219,35 +224,25 @@ backends:
     url: http://backend-b:9002
 ```
 
-The configuration file can be selected using:
-
-```text
-NIMBUSLB_CONFIG
-```
-
-If the environment variable is not provided, NimbusLB uses:
-
-```text
-configs/config.yaml
-```
+Configuration validation is performed during startup to detect invalid or incomplete configuration.
 
 ---
 
 ## Running Locally
 
-### Start Backend A
+### 1. Start Backend A
 
 ```bash
 go run ./cmd/backend --port=9001 --name="Backend A"
 ```
 
-### Start Backend B
+### 2. Start Backend B
 
 ```bash
 go run ./cmd/backend --port=9002 --name="Backend B"
 ```
 
-### Start NimbusLB
+### 3. Start NimbusLB
 
 ```bash
 go run ./cmd/server
@@ -287,7 +282,7 @@ Hello from Backend B
 
 ## Health Endpoint
 
-NimbusLB exposes a health endpoint:
+NimbusLB exposes:
 
 ```text
 GET /health
@@ -299,7 +294,13 @@ Test it with:
 curl http://localhost:8080/health
 ```
 
-The endpoint provides visibility into the health state of configured backends.
+Example response:
+
+```json
+{"status":"healthy"}
+```
+
+The endpoint provides a simple operational health signal for the load balancer.
 
 ---
 
@@ -317,13 +318,23 @@ Test it with:
 curl http://localhost:8080/metrics
 ```
 
-Metrics include request-related and backend-related information collected by the load balancer.
+Example output:
+
+```text
+nimbuslb_requests_total 11
+nimbuslb_requests_success_total 11
+nimbuslb_requests_failed_total 0
+nimbuslb_backend_requests_total{backend="Backend A"} 6
+nimbuslb_backend_requests_total{backend="Backend B"} 5
+```
+
+These counters provide visibility into request volume, successful and failed requests, and backend traffic distribution.
 
 ---
 
 ## Request IDs and Logging
 
-NimbusLB generates request IDs for incoming requests.
+NimbusLB generates a request ID when one is not provided by the client.
 
 Example:
 
@@ -337,13 +348,13 @@ Clients can also provide their own request ID:
 curl -H "X-Request-ID: my-test-123" http://localhost:8080/
 ```
 
-Example server logging:
+Example server log:
 
 ```text
 request_id=req-2 method=GET path=/ status=200 duration=7.589ms
 ```
 
-This makes individual requests easier to trace through the system.
+Request IDs make individual requests easier to trace through the system.
 
 ---
 
@@ -357,15 +368,15 @@ Build and start the system:
 docker compose up --build
 ```
 
-The Docker deployment consists of:
+The deployment consists of:
 
 ```text
                          localhost:8080
                                |
                                v
                         +-------------+
-                        |  NimbusLB    |
-                        +------+------+
+                        |   NimbusLB   |
+                        +------+------+ 
                                |
                     +----------+----------+
                     |                     |
@@ -376,28 +387,30 @@ The Docker deployment consists of:
              +-------------+       +-------------+
 ```
 
-Test:
+Only NimbusLB is exposed to the host.
+
+Test the deployment:
 
 ```bash
 curl http://localhost:8080/
 ```
 
-Run multiple requests:
+Run multiple requests on PowerShell:
 
-```bash
+```powershell
 1..10 | ForEach-Object { curl.exe -s http://localhost:8080/ }
-```
-
-Stop the system:
-
-```bash
-docker compose down
 ```
 
 Check running containers:
 
 ```bash
 docker compose ps
+```
+
+Stop the system:
+
+```bash
+docker compose down
 ```
 
 ---
@@ -416,7 +429,11 @@ Run integration tests:
 go test ./tests -v
 ```
 
-The integration tests verify HTTP routing and backend failover behavior.
+The integration tests verify complete HTTP behavior including:
+
+* request routing
+* round-robin distribution
+* backend failover
 
 Example:
 
@@ -442,7 +459,7 @@ Run all benchmarks:
 go test ./internal/balancer -bench=Benchmark -benchmem -run=^$
 ```
 
-Example benchmark results collected during development:
+A development benchmark on the project hardware produced approximately:
 
 ```text
 BenchmarkNextBackend
@@ -469,26 +486,25 @@ BenchmarkHTTPRouting
 77 allocs/op
 ```
 
-These values are development benchmarks rather than production capacity guarantees. Actual performance depends on hardware, operating system, workload, network conditions, and backend behavior.
+These numbers are development measurements rather than production capacity guarantees. Actual performance depends on hardware, operating system, workload, network conditions, and backend behavior.
 
 ---
 
 ## Concurrency
 
-The load balancer is designed to handle concurrent requests safely.
+NimbusLB is designed to handle concurrent HTTP requests safely.
 
-Backend selection uses synchronization to protect shared state while maintaining low allocation overhead.
+Backend selection protects shared scheduling state using synchronization while keeping the critical section small.
 
-Concurrent benchmarks are included to evaluate backend-selection behavior under parallel execution.
+The project includes concurrent benchmarks to evaluate backend-selection behavior under parallel execution.
 
-Example:
+The benchmark results demonstrate that backend selection performs with:
 
 ```text
-BenchmarkNextBackendParallel
-~50 ns/op
-0 B/op
-0 allocs/op
+0 allocations/op
 ```
+
+under the tested workload.
 
 ---
 
@@ -528,7 +544,7 @@ No healthy backend
 503 Service Unavailable
 ```
 
-This behavior is covered by the project's integration tests.
+This behavior is covered by the integration test suite.
 
 ---
 
@@ -538,12 +554,12 @@ NimbusLB uses Go's HTTP server shutdown mechanisms to perform graceful terminati
 
 When the process receives a termination signal, it:
 
-1. Stops accepting new connections.
+1. Stops accepting new work.
 2. Allows active requests to complete within the configured timeout.
 3. Shuts down the HTTP server.
 4. Exits cleanly.
 
-The server uses configured timeouts for:
+The server also configures:
 
 ```text
 Read timeout
@@ -552,50 +568,60 @@ Idle timeout
 Shutdown timeout
 ```
 
+This makes the service better suited to containerized environments.
+
 ---
 
 ## Design Decisions
 
+Detailed architectural decisions are documented in:
+
+```text
+docs/architecture.md
+docs/design-decisions.md
+```
+
+Important design choices include:
+
 ### Why Go?
 
-Go was selected because it provides:
+Go provides:
 
 * lightweight concurrency
-* a strong standard library
+* strong standard-library networking support
 * excellent HTTP support
-* straightforward networking APIs
+* synchronization primitives
 * built-in testing and benchmarking
-* simple deployment as a compiled binary
-
----
+* straightforward deployment as a compiled binary
 
 ### Why Round Robin?
 
 Round robin provides a simple and deterministic baseline for distributing traffic across backend servers.
 
-It also makes the behavior easy to test and provides a foundation for more advanced scheduling algorithms.
-
----
+It is easy to test, has low scheduling overhead, and provides a foundation for more advanced algorithms.
 
 ### Why Reverse Proxy?
 
-Using Go's reverse-proxy implementation allows NimbusLB to focus on load-balancing logic while relying on a mature HTTP proxy implementation.
+Go's reverse-proxy implementation allows NimbusLB to focus on:
 
----
+```text
+Backend selection
+Health awareness
+Failure handling
+Observability
+```
+
+while relying on the standard library for HTTP forwarding.
 
 ### Why Health Checks?
 
-A load balancer should not continue sending traffic to unavailable backend instances.
+A load balancer should avoid intentionally sending traffic to unavailable backend instances.
 
-Periodic health checks allow NimbusLB to dynamically remove failed backends from rotation and reintroduce them when they recover.
-
----
+Periodic health checks allow NimbusLB to remove failed backends from rotation and reintroduce them after recovery.
 
 ### Why Configuration Files?
 
-Keeping backend addresses, server ports, and health-check intervals outside the application code makes the system easier to deploy in different environments.
-
-The same application binary can therefore run with different configurations.
+Keeping backend addresses, server ports, and health-check intervals outside application code makes the system easier to deploy in different environments.
 
 ---
 
@@ -610,13 +636,13 @@ NimbusLB handles several operational failure scenarios:
 * concurrent requests
 * graceful process termination
 
-The project includes unit tests and integration tests for core routing and failure behavior.
+The project includes unit, integration, and failure-path tests for core behavior.
 
 ---
 
 ## Development Roadmap
 
-The project was developed incrementally.
+NimbusLB was developed incrementally.
 
 ### Completed
 
@@ -627,6 +653,7 @@ The project was developed incrementally.
 * [x] Backend health checking
 * [x] Unhealthy backend exclusion
 * [x] Configuration management
+* [x] Configuration validation
 * [x] Request IDs
 * [x] Request logging
 * [x] Metrics endpoint
@@ -638,10 +665,10 @@ The project was developed incrementally.
 * [x] Concurrent benchmarks
 * [x] Docker deployment
 * [x] Docker Compose deployment
+* [x] Architecture documentation
+* [x] Design decision documentation
 
-### Future Work
-
-Potential improvements include:
+### Potential Future Work
 
 * weighted load balancing
 * least-connections scheduling
@@ -654,13 +681,13 @@ Potential improvements include:
 * distributed tracing
 * dynamic configuration reloads
 * authentication and authorization
-* more advanced load-balancing algorithms
+* additional load-balancing algorithms
 
 ---
 
 ## What This Project Demonstrates
 
-NimbusLB demonstrates practical application of:
+NimbusLB combines several practical systems and networking concepts:
 
 * HTTP networking
 * reverse proxies
@@ -676,9 +703,9 @@ NimbusLB demonstrates practical application of:
 * integration testing
 * benchmarking
 * containerization
-* service discovery
+* Docker service networking
 
-The goal is not simply to implement a working load balancer, but to explore how a small networking system can be designed to remain observable, testable, configurable, and resilient to component failures.
+The goal is not simply to implement a working load balancer, but to explore how a small networking system can be designed to remain **observable, testable, configurable, and resilient to component failures**.
 
 ---
 
