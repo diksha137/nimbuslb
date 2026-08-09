@@ -14,6 +14,7 @@ import (
 	"github.com/diksha137/nimbuslb/internal/balancer"
 	"github.com/diksha137/nimbuslb/internal/config"
 	"github.com/diksha137/nimbuslb/internal/health"
+	"github.com/diksha137/nimbuslb/internal/middleware"
 )
 
 func main() {
@@ -76,9 +77,13 @@ func main() {
 
 	address := fmt.Sprintf(":%d", cfg.Server.Port)
 
+	handler := middleware.RequestID(
+		middleware.Logging(mux),
+	)
+
 	server := &http.Server{
 		Addr:    address,
-		Handler: mux,
+		Handler: handler,
 
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
