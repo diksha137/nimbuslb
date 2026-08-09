@@ -22,9 +22,20 @@ func (b *Balancer) NextBackend() *backend.Backend {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
-	selected := b.backends[b.current]
+	if len(b.backends) == 0 {
+		return nil
+	}
 
-	b.current = (b.current + 1) % len(b.backends)
+	for i := 0; i < len(b.backends); i++ {
 
-	return selected
+		selected := b.backends[b.current]
+
+		b.current = (b.current + 1) % len(b.backends)
+
+		if selected.IsHealthy() {
+			return selected
+		}
+	}
+
+	return nil
 }

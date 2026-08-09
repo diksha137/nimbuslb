@@ -3,12 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/diksha137/nimbuslb/internal/backend"
 	"github.com/diksha137/nimbuslb/internal/balancer"
+	"github.com/diksha137/nimbuslb/internal/health"
 )
 
 func main() {
+
 	backendA, err := backend.New(
 		"Backend A",
 		"http://localhost:9001",
@@ -25,13 +28,32 @@ func main() {
 		log.Fatal(err)
 	}
 
-	lb := balancer.New([]*backend.Backend{
+	backends := []*backend.Backend{
 		backendA,
 		backendB,
-	})
+	}
+
+	lb := balancer.New(backends)
+
+	healthChecker := health.NewChecker(
+		backends,
+		5*time.Second,
+	)
+
+	healthChecker.Start()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
 		selected := lb.NextBackend()
+
+		if selected == nil {
+			http.Error(
+				w,
+				"No healthy backends available",
+				http.StatusServiceUnavailable,
+			)
+			return
+		}
 
 		log.Printf(
 			"Forwarding %s %s -> %s",
