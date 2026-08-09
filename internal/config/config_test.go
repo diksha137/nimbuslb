@@ -75,3 +75,92 @@ backends:
 		)
 	}
 }
+
+func TestValidateRejectsInvalidPort(t *testing.T) {
+	cfg := Config{
+		Server: ServerConfig{
+			Port: 70000,
+		},
+		Health: HealthConfig{
+			IntervalSeconds: 5,
+		},
+		Backends: []BackendConfig{
+			{
+				Name: "Backend A",
+				URL:  "http://localhost:9001",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid port error")
+	}
+}
+
+func TestValidateRejectsNoBackends(t *testing.T) {
+	cfg := Config{
+		Server: ServerConfig{
+			Port: 8080,
+		},
+		Health: HealthConfig{
+			IntervalSeconds: 5,
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected no backends error")
+	}
+}
+
+func TestValidateRejectsDuplicateBackend(t *testing.T) {
+	cfg := Config{
+		Server: ServerConfig{
+			Port: 8080,
+		},
+		Health: HealthConfig{
+			IntervalSeconds: 5,
+		},
+		Backends: []BackendConfig{
+			{
+				Name: "Backend A",
+				URL:  "http://localhost:9001",
+			},
+			{
+				Name: "Backend A",
+				URL:  "http://localhost:9002",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected duplicate backend error")
+	}
+}
+
+func TestValidateAcceptsValidConfig(t *testing.T) {
+	cfg := Config{
+		Server: ServerConfig{
+			Port: 8080,
+		},
+		Health: HealthConfig{
+			IntervalSeconds: 5,
+		},
+		Backends: []BackendConfig{
+			{
+				Name: "Backend A",
+				URL:  "http://localhost:9001",
+			},
+			{
+				Name: "Backend B",
+				URL:  "http://localhost:9002",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf(
+			"expected valid config, got %v",
+			err,
+		)
+	}
+}
