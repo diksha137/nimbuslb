@@ -1,49 +1,52 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/diksha137/nimbuslb/internal/backend"
 	"github.com/diksha137/nimbuslb/internal/balancer"
+	"github.com/diksha137/nimbuslb/internal/config"
 	"github.com/diksha137/nimbuslb/internal/health"
 )
 
 func main() {
-
-	backendA, err := backend.New(
-		"Backend A",
-		"http://localhost:9001",
-	)
+	cfg, err := config.Load("configs/config.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	backendB, err := backend.New(
-		"Backend B",
-		"http://localhost:9002",
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+	var backends []*backend.Backend
 
-	backends := []*backend.Backend{
-		backendA,
-		backendB,
+	for _, backendConfig := range cfg.Backends {
+		b, err := backend.New(
+			backendConfig.Name,
+			backendConfig.URL,
+		)
+
+		if err != nil {
+			log.Fatalf(
+				"failed to create backend %s: %v",
+				backendConfig.Name,
+				err,
+			)
+		}
+
+		backends = append(backends, b)
 	}
 
 	lb := balancer.New(backends)
 
 	healthChecker := health.NewChecker(
 		backends,
-		5*time.Second,
+		time.Duration(cfg.Health.IntervalSeconds)*time.Second,
 	)
 
 	healthChecker.Start()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-
 		selected := lb.NextBackend()
 
 		if selected == nil {
@@ -65,7 +68,12 @@ func main() {
 		selected.Proxy.ServeHTTP(w, r)
 	})
 
-	log.Println("NimbusLB listening on :8080")
+	address := fmt.Sprintf(":%d", cfg.Server.Port)
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Printf(
+		"NimbusLB listening on %s",
+		address,
+	)
+
+	log.Fatal(http.ListenAndServe(address, nil))
 }

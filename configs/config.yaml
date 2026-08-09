@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+health:
+  interval_seconds: 5
+
+backends:
+  - name: Backend A
+    url: http://localhost:9001
+
+  - name: Backend B
+    url: http://localhost:9002

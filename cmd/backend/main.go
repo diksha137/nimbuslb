@@ -8,9 +8,8 @@ import (
 )
 
 func main() {
-
-	port := flag.String("port", "9001", "Port to run server")
-	name := flag.String("name", "Backend A", "Server name")
+	port := flag.Int("port", 9001, "Backend server port")
+	name := flag.String("name", "Backend", "Backend name")
 
 	flag.Parse()
 
@@ -18,7 +17,14 @@ func main() {
 		fmt.Fprintf(w, "Hello from %s\n", *name)
 	})
 
-	log.Printf("%s running on :%s\n", *name, *port)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "OK")
+	})
 
-	log.Fatal(http.ListenAndServe(":"+*port, nil))
+	address := fmt.Sprintf(":%d", *port)
+
+	log.Printf("%s running on %s", *name, address)
+
+	log.Fatal(http.ListenAndServe(address, nil))
 }
