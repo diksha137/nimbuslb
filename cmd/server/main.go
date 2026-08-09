@@ -100,7 +100,13 @@ func main() {
 		metricsCollector.IncSuccess()
 	})
 
-	address := fmt.Sprintf(":%d", cfg.Server.Port)
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = fmt.Sprintf("%d", cfg.Server.Port)
+	}
+
+	address := ":" + port
 
 	handler := middleware.RequestID(
 		middleware.Logging(mux),
