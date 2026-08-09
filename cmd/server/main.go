@@ -1,33 +1,49 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/diksha137/nimbuslb/internal/backend"
+	"github.com/diksha137/nimbuslb/internal/balancer"
 )
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Welcome to NimbusLB!")
-}
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
-	fmt.Fprintln(w, "OK")
-}
-
-func versionHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Received %s request for %s", r.Method, r.URL.Path)
-	fmt.Fprint(w, "NimbusLB v0.1.0")
-}
 func main() {
-
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/version", versionHandler)
-
-	fmt.Println("NimbusLB listening on :8080")
-
-	err := http.ListenAndServe(":8080", nil)
+	backendA, err := backend.New(
+		"Backend A",
+		"http://localhost:9001",
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	backendB, err := backend.New(
+		"Backend B",
+		"http://localhost:9002",
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lb := balancer.New([]*backend.Backend{
+		backendA,
+		backendB,
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		selected := lb.NextBackend()
+
+		log.Printf(
+			"Forwarding %s %s -> %s",
+			r.Method,
+			r.URL.Path,
+			selected.Name,
+		)
+
+		selected.Proxy.ServeHTTP(w, r)
+	})
+
+	log.Println("NimbusLB listening on :8080")
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
