@@ -1,0 +1,26 @@
+services:
+  nimbuslb:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/app/configs:ro
+    depends_on:
+      - backend-a
+      - backend-b
+
+  backend-a:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command:
+      - "--port=9001"
+      - "--name=Backend A"
+
+  backend-b:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command:
+      - "--port=9002"
+      - "--name=Backend B"

@@ -20,7 +20,13 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load("configs/config.yaml")
+	configPath := os.Getenv("NIMBUSLB_CONFIG")
+
+	if configPath == "" {
+		configPath = "configs/config.yaml"
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
