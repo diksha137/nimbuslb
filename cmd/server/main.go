@@ -15,6 +15,7 @@ import (
 	"github.com/diksha137/nimbuslb/internal/config"
 	"github.com/diksha137/nimbuslb/internal/health"
 	"github.com/diksha137/nimbuslb/internal/middleware"
+	serverhandlers "github.com/diksha137/nimbuslb/internal/server"
 )
 
 func main() {
@@ -52,6 +53,11 @@ func main() {
 	healthChecker.Start()
 
 	mux := http.NewServeMux()
+
+	mux.Handle(
+		"/health",
+		serverhandlers.HealthHandler(backends),
+	)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		selected := lb.NextBackend()
