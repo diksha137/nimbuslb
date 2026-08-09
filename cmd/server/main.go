@@ -14,6 +14,7 @@ import (
 	"github.com/diksha137/nimbuslb/internal/balancer"
 	"github.com/diksha137/nimbuslb/internal/config"
 	"github.com/diksha137/nimbuslb/internal/health"
+	"github.com/diksha137/nimbuslb/internal/metrics"
 	"github.com/diksha137/nimbuslb/internal/middleware"
 	serverhandlers "github.com/diksha137/nimbuslb/internal/server"
 )
@@ -44,6 +45,7 @@ func main() {
 	}
 
 	lb := balancer.New(backends)
+	metricsCollector := metrics.New()
 
 	healthChecker := health.NewChecker(
 		backends,
@@ -53,6 +55,10 @@ func main() {
 	healthChecker.Start()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc(
+		"/metrics",
+		metricsCollector.Handler,
+	)
 
 	mux.Handle(
 		"/health",
@@ -60,9 +66,14 @@ func main() {
 	)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		metricsCollector.IncRequests()
+
 		selected := lb.NextBackend()
 
 		if selected == nil {
+			metricsCollector.IncFailed()
+
 			http.Error(
 				w,
 				"No healthy backends available",
@@ -77,8 +88,10 @@ func main() {
 			r.URL.Path,
 			selected.Name,
 		)
+		metricsCollector.IncBackendRequest(selected.Name)
 
 		selected.Proxy.ServeHTTP(w, r)
+		metricsCollector.IncSuccess()
 	})
 
 	address := fmt.Sprintf(":%d", cfg.Server.Port)
