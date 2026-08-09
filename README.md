@@ -4,39 +4,77 @@ A production-oriented HTTP load balancer written in Go.
 
 NimbusLB distributes HTTP traffic across multiple backend servers using round-robin scheduling, continuously monitors backend health, automatically avoids unhealthy instances, and exposes operational metrics.
 
-The project explores practical systems-programming concepts including **concurrency, networking, fault tolerance, reverse proxies, health checking, graceful shutdown, observability, testing, benchmarking, and containerized deployment**.
+The project explores practical systems-programming concepts including ****concurrency, networking, fault tolerance, reverse proxies, health checking, graceful shutdown, observability, testing, benchmarking, and containerized deployment****.
 
 ---
 
-## Architecture
+## Live Demo
+
+🌐 ****[Try NimbusLB Live](**https://nimbuslb.onrender.com/**)****
+
+NimbusLB is deployed publicly using a free Render instance.
+
+The live deployment includes:
+
+- Round-robin request routing
+- Two backend services
+- Backend health checking
+- Request IDs
+- Operational metrics
+
+Try it directly:
+
+```bash
+curl https://nimbuslb.onrender.com/
+```
+
+Health check:
+
+```bash
+curl https://nimbuslb.onrender.com/health
+```
+
+Metrics:
+
+```bash
+curl https://nimbuslb.onrender.com/metrics
+```
+
+You can also open the live service directly in a browser:
+
+[https://nimbuslb.onrender.com/](https://nimbuslb.onrender.com/)
+
+Note: The free deployment may sleep after a period of inactivity, so the first request can take longer while the service starts again.
+
+\## Architecture
 
 ```text
-                         HTTP Clients
-                              |
-                              v
-                    +-------------------+
-                    |     NimbusLB      |
-                    |                   |
-                    | HTTP Server       |
-                    | Request ID        |
-                    | Logging           |
-                    | Metrics           |
-                    | Health Checking   |
-                    | Round Robin LB    |
-                    +---------+---------+
-                              |
-                    +---------+---------+
-                    |                   |
-                    v                   v
-             +-------------+     +-------------+
-             |  Backend A  |     |  Backend B  |
-             |    :9001    |     |    :9002    |
-             +-------------+     +-------------+
-                    ^                   ^
-                    |                   |
-                    +--------+----------+
-                             |
-                      Health Checker
+                         HTTP Clients
+                              |
+                              v
+                    +-------------------+
+                    |     NimbusLB      |
+                    |                   |
+                    | HTTP Server       |
+                    | Request ID        |
+                    | Logging           |
+                    | Metrics           |
+                    | Health Checking   |
+                    | Round Robin LB    |
+                    +---------+---------+
+                              |
+                    +---------+---------+
+                    |                   |
+                    v                   v
+             +-------------+     +-------------+
+             |  Backend A  |     |  Backend B  |
+             |    :9001    |     |    :9002    |
+             +-------------+     +-------------+
+                    ^                   ^
+                    |                   |
+                    +--------+----------+
+                             |
+                      Health Checker
 ```
 
 ---
@@ -71,32 +109,32 @@ The project explores practical systems-programming concepts including **concurre
 NimbusLB/
 │
 ├── cmd/
-│   ├── backend/
-│   │   └── main.go
-│   │
-│   └── server/
-│       └── main.go
+│   ├── backend/
+│   │   └── main.go
+│   │
+│   └── server/
+│       └── main.go
 │
 ├── configs/
-│   ├── config.yaml
-│   └── config.docker.yaml
+│   ├── config.yaml
+│   └── config.docker.yaml
 │
 ├── docs/
-│   ├── architecture.md
-│   └── design-decisions.md
+│   ├── architecture.md
+│   └── design-decisions.md
 │
 ├── internal/
-│   ├── backend/
-│   ├── balancer/
-│   ├── config/
-│   ├── health/
-│   ├── metrics/
-│   ├── middleware/
-│   ├── proxy/
-│   └── server/
+│   ├── backend/
+│   ├── balancer/
+│   ├── config/
+│   ├── health/
+│   ├── metrics/
+│   ├── middleware/
+│   ├── proxy/
+│   └── server/
 │
 ├── tests/
-│   └── integration_test.go
+│   └── integration_test.go
 │
 ├── Dockerfile
 ├── Dockerfile.backend
@@ -158,11 +196,11 @@ The client communicates with NimbusLB rather than directly accessing backend ser
 
 ```text
 Client
-  |
-  v
+  |
+  v
 NimbusLB
-  |
-  v
+  |
+  v
 Selected Backend
 ```
 
@@ -194,34 +232,34 @@ Example local configuration:
 
 ```yaml
 server:
-  port: 8080
+  port: 8080
 
 health:
-  interval_seconds: 5
+  interval_seconds: 5
 
 backends:
-  - name: Backend A
-    url: http://localhost:9001
+  - name: Backend A
+    url: http://localhost:9001
 
-  - name: Backend B
-    url: http://localhost:9002
+  - name: Backend B
+    url: http://localhost:9002
 ```
 
 Docker uses a separate configuration because containers communicate using Docker service names:
 
 ```yaml
 server:
-  port: 8080
+  port: 8080
 
 health:
-  interval_seconds: 5
+  interval_seconds: 5
 
 backends:
-  - name: Backend A
-    url: http://backend-a:9001
+  - name: Backend A
+    url: http://backend-a:9001
 
-  - name: Backend B
-    url: http://backend-b:9002
+  - name: Backend B
+    url: http://backend-b:9002
 ```
 
 Configuration validation is performed during startup to detect invalid or incomplete configuration.
@@ -371,20 +409,20 @@ docker compose up --build
 The deployment consists of:
 
 ```text
-                         localhost:8080
-                               |
-                               v
-                        +-------------+
-                        |   NimbusLB   |
-                        +------+------+ 
-                               |
-                    +----------+----------+
-                    |                     |
-                    v                     v
-             +-------------+       +-------------+
-             |  backend-a  |       |  backend-b  |
-             |    :9001    |       |    :9002    |
-             +-------------+       +-------------+
+                         localhost:8080
+                               |
+                               v
+                        +-------------+
+                        |   NimbusLB   |
+                        +------+------+ 
+                               |
+                    +----------+----------+
+                    |                     |
+                    v                     v
+             +-------------+       +-------------+
+             |  backend-a  |       |  backend-b  |
+             |    :9001    |       |    :9002    |
+             +-------------+       +-------------+
 ```
 
 Only NimbusLB is exposed to the host.
@@ -438,10 +476,10 @@ The integration tests verify complete HTTP behavior including:
 Example:
 
 ```text
-=== RUN   TestLoadBalancerHTTPRouting
+=== RUN   TestLoadBalancerHTTPRouting
 --- PASS: TestLoadBalancerHTTPRouting
 
-=== RUN   TestLoadBalancerFailover
+=== RUN   TestLoadBalancerFailover
 --- PASS: TestLoadBalancerFailover
 
 PASS
@@ -463,7 +501,7 @@ A development benchmark on the project hardware produced approximately:
 
 ```text
 BenchmarkNextBackend
-~25 ns/op
+\~25 ns/op
 0 B/op
 0 allocs/op
 ```
@@ -472,7 +510,7 @@ Concurrent backend selection:
 
 ```text
 BenchmarkNextBackendParallel
-~50 ns/op
+\~50 ns/op
 0 B/op
 0 allocs/op
 ```
@@ -481,8 +519,8 @@ HTTP routing:
 
 ```text
 BenchmarkHTTPRouting
-~98.7 µs/op
-~44.4 KB/op
+\~98.7 µs/op
+\~44.4 KB/op
 77 allocs/op
 ```
 
@@ -515,16 +553,16 @@ NimbusLB is designed to continue operating when individual backend servers fail.
 For example:
 
 ```text
-             Backend A
-                |
-             healthy
-                |
-                v
+             Backend A
+                |
+             healthy
+                |
+                v
 Client → NimbusLB
-                ^
-                |
-             Backend B
-             unhealthy
+                ^
+                |
+             Backend B
+             unhealthy
 ```
 
 Requests are automatically routed away from unhealthy backends.
@@ -533,14 +571,14 @@ If all configured backends become unhealthy:
 
 ```text
 Client
-  |
-  v
+  |
+  v
 NimbusLB
-  |
-  X
+  |
+  X
 No healthy backend
-  |
-  v
+  |
+  v
 503 Service Unavailable
 ```
 
@@ -554,10 +592,10 @@ NimbusLB uses Go's HTTP server shutdown mechanisms to perform graceful terminati
 
 When the process receives a termination signal, it:
 
-1. Stops accepting new work.
-2. Allows active requests to complete within the configured timeout.
-3. Shuts down the HTTP server.
-4. Exits cleanly.
+1\. Stops accepting new work.
+2\. Allows active requests to complete within the configured timeout.
+3\. Shuts down the HTTP server.
+4\. Exits cleanly.
 
 The server also configures:
 
@@ -705,7 +743,7 @@ NimbusLB combines several practical systems and networking concepts:
 * containerization
 * Docker service networking
 
-The goal is not simply to implement a working load balancer, but to explore how a small networking system can be designed to remain **observable, testable, configurable, and resilient to component failures**.
+The goal is not simply to implement a working load balancer, but to explore how a small networking system can be designed to remain ****observable, testable, configurable, and resilient to component failures****.
 
 ---
 
