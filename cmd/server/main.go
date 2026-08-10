@@ -556,26 +556,32 @@ func serveDashboard(w http.ResponseWriter) {
 
 <script>
 	function parseMetric(text, name, labels) {
-		const lines = text.split("\n");
+	const lines = text.split("\n");
 
-		for (const line of lines) {
-			if (!line.startsWith(name)) {
-				continue;
-			}
-
-			if (labels && !line.includes(labels)) {
-				continue;
-			}
-
-			const parts = line.trim().split(/\s+/);
-
-			if (parts.length >= 2) {
-				return parts[1];
-			}
+	for (const line of lines) {
+		if (!line.startsWith(name)) {
+			continue;
 		}
 
-		return "0";
+		if (labels && !line.includes(labels)) {
+			continue;
+		}
+
+		const match = line.match(/\}\s+([0-9.]+)$/);
+
+		if (match) {
+			return match[1];
+		}
+
+		const parts = line.trim().split(/\s+/);
+
+		if (parts.length >= 2) {
+			return parts[parts.length - 1];
+		}
 	}
+
+	return "0";
+}
 
 	async function refreshMetrics() {
 		try {
@@ -625,47 +631,55 @@ func serveDashboard(w http.ResponseWriter) {
 	}
 
 	async function refreshHealth() {
-		try {
-			const response = await fetch("/health");
+	try {
+		const response = await fetch("/health");
 
-			if (!response.ok) {
-				throw new Error("Health request failed");
-			}
+		const data = await response.json();
 
-			const data = await response.json();
-
-			const healthy = data.status === "healthy";
-
-			updateHealth(
-				"backendADot",
-				"backendAStatus",
-				healthy
-			);
-
-			updateHealth(
-				"backendBDot",
-				"backendBStatus",
-				healthy
-			);
-
-		} catch (error) {
-			console.error("Failed to load health:", error);
-
-			updateHealth(
-				"backendADot",
-				"backendAStatus",
-				false,
-				"Unavailable"
-			);
-
-			updateHealth(
-				"backendBDot",
-				"backendBStatus",
-				false,
-				"Unavailable"
-			);
+		if (!response.ok && !data.backends) {
+			throw new Error("Health request failed");
 		}
+
+		const backends = data.backends || {};
+
+		const backendAHealthy =
+			backends["Backend A"] === "healthy";
+
+		const backendBHealthy =
+			backends["Backend B"] === "healthy";
+
+		updateHealth(
+			"backendADot",
+			"backendAStatus",
+			backendAHealthy,
+			"Unavailable"
+		);
+
+		updateHealth(
+			"backendBDot",
+			"backendBStatus",
+			backendBHealthy,
+			"Unavailable"
+		);
+
+	} catch (error) {
+		console.error("Failed to load health:", error);
+
+		updateHealth(
+			"backendADot",
+			"backendAStatus",
+			false,
+			"Unavailable"
+		);
+
+		updateHealth(
+			"backendBDot",
+			"backendBStatus",
+			false,
+			"Unavailable"
+		);
 	}
+}
 
 	function updateHealth(dotID, statusID, healthy, label) {
 		const dot = document.getElementById(dotID);

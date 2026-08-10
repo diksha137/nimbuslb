@@ -8,32 +8,46 @@ import (
 )
 
 type HealthResponse struct {
-	Status string `json:"status"`
+	Status   string            `json:"status"`
+	Backends map[string]string `json:"backends"`
 }
 
 func HealthHandler(backends []*backend.Backend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		allHealthy := true
+		backendStatuses := make(map[string]string)
+
 		for _, b := range backends {
 			if b.IsHealthy() {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-
-				_ = json.NewEncoder(w).Encode(
-					HealthResponse{
-						Status: "healthy",
-					},
-				)
-
-				return
+				backendStatuses[b.Name] = "healthy"
+			} else {
+				backendStatuses[b.Name] = "unhealthy"
+				allHealthy = false
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
+		status := "healthy"
+
+		if !allHealthy {
+			status = "degraded"
+		}
+
+		if len(backends) == 0 {
+			status = "unhealthy"
+		}
+
+		if status == "unhealthy" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
 
 		_ = json.NewEncoder(w).Encode(
 			HealthResponse{
-				Status: "unhealthy",
+				Status:   status,
+				Backends: backendStatuses,
 			},
 		)
 	}

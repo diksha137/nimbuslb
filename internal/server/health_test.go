@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,9 @@ func TestHealthHandlerHealthy(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	backendA.SetHealthy(true)
+	backendB.SetHealthy(true)
+
 	handler := HealthHandler(
 		[]*backend.Backend{
 			backendA,
@@ -32,37 +36,48 @@ func TestHealthHandlerHealthy(t *testing.T) {
 		},
 	)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/health",
-		nil,
-	)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
 
-	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
 
-	handler.ServeHTTP(recorder, req)
-
-	if recorder.Code != http.StatusOK {
+	if rec.Code != http.StatusOK {
 		t.Fatalf(
 			"expected status %d, got %d",
 			http.StatusOK,
-			recorder.Code,
+			rec.Code,
 		)
 	}
 
-	expected := `{"status":"healthy"}
-`
+	var response HealthResponse
 
-	if recorder.Body.String() != expected {
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Status != "healthy" {
 		t.Fatalf(
-			"expected %q, got %q",
-			expected,
-			recorder.Body.String(),
+			"expected status healthy, got %q",
+			response.Status,
+		)
+	}
+
+	if response.Backends["Backend A"] != "healthy" {
+		t.Fatalf(
+			"expected Backend A to be healthy, got %q",
+			response.Backends["Backend A"],
+		)
+	}
+
+	if response.Backends["Backend B"] != "healthy" {
+		t.Fatalf(
+			"expected Backend B to be healthy, got %q",
+			response.Backends["Backend B"],
 		)
 	}
 }
 
-func TestHealthHandlerUnhealthy(t *testing.T) {
+func TestHealthHandlerDegraded(t *testing.T) {
 	backendA, err := backend.New(
 		"Backend A",
 		"http://localhost:9001",
@@ -79,7 +94,7 @@ func TestHealthHandlerUnhealthy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	backendA.SetHealthy(false)
+	backendA.SetHealthy(true)
 	backendB.SetHealthy(false)
 
 	handler := HealthHandler(
@@ -89,32 +104,82 @@ func TestHealthHandlerUnhealthy(t *testing.T) {
 		},
 	)
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/health",
-		nil,
-	)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
 
-	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
 
-	handler.ServeHTTP(recorder, req)
-
-	if recorder.Code != http.StatusServiceUnavailable {
+	if rec.Code != http.StatusOK {
 		t.Fatalf(
-			"expected status %d, got %d",
-			http.StatusServiceUnavailable,
-			recorder.Code,
+			"expected status %d for degraded service, got %d",
+			http.StatusOK,
+			rec.Code,
 		)
 	}
 
-	expected := `{"status":"unhealthy"}
-`
+	var response HealthResponse
 
-	if recorder.Body.String() != expected {
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Status != "degraded" {
 		t.Fatalf(
-			"expected %q, got %q",
-			expected,
-			recorder.Body.String(),
+			"expected status degraded, got %q",
+			response.Status,
+		)
+	}
+
+	if response.Backends["Backend A"] != "healthy" {
+		t.Fatalf(
+			"expected Backend A to be healthy, got %q",
+			response.Backends["Backend A"],
+		)
+	}
+
+	if response.Backends["Backend B"] != "unhealthy" {
+		t.Fatalf(
+			"expected Backend B to be unhealthy, got %q",
+			response.Backends["Backend B"],
+		)
+	}
+}
+
+func TestHealthHandlerUnhealthy(t *testing.T) {
+	handler := HealthHandler(
+		[]*backend.Backend{},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusServiceUnavailable,
+			rec.Code,
+		)
+	}
+
+	var response HealthResponse
+
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Status != "unhealthy" {
+		t.Fatalf(
+			"expected status unhealthy, got %q",
+			response.Status,
+		)
+	}
+
+	if len(response.Backends) != 0 {
+		t.Fatalf(
+			"expected no backend statuses, got %d",
+			len(response.Backends),
 		)
 	}
 }
