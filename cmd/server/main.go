@@ -630,55 +630,53 @@ func serveDashboard(w http.ResponseWriter) {
 		}
 	}
 
-	async function refreshHealth() {
-	try {
-		const response = await fetch("/health");
+async function refreshHealth() {
+    try {
+        const response = await fetch("/health");
 
-		const data = await response.json();
+        if (!response.ok) {
+            throw new Error("Health request failed");
+        }
 
-		if (!response.ok && !data.backends) {
-			throw new Error("Health request failed");
-		}
+        const data = await response.json();
 
-		const backends = data.backends || {};
+        const backendAHealthy =
+            data.backends &&
+            data.backends["Backend A"] === "healthy";
 
-		const backendAHealthy =
-			backends["Backend A"] === "healthy";
+        const backendBHealthy =
+            data.backends &&
+            data.backends["Backend B"] === "healthy";
 
-		const backendBHealthy =
-			backends["Backend B"] === "healthy";
+        updateHealth(
+            "backendADot",
+            "backendAStatus",
+            backendAHealthy
+        );
 
-		updateHealth(
-			"backendADot",
-			"backendAStatus",
-			backendAHealthy,
-			"Unavailable"
-		);
+        updateHealth(
+            "backendBDot",
+            "backendBStatus",
+            backendBHealthy
+        );
 
-		updateHealth(
-			"backendBDot",
-			"backendBStatus",
-			backendBHealthy,
-			"Unavailable"
-		);
+    } catch (error) {
+        console.error("Failed to load health:", error);
 
-	} catch (error) {
-		console.error("Failed to load health:", error);
+        updateHealth(
+            "backendADot",
+            "backendAStatus",
+            false,
+            "Unavailable"
+        );
 
-		updateHealth(
-			"backendADot",
-			"backendAStatus",
-			false,
-			"Unavailable"
-		);
-
-		updateHealth(
-			"backendBDot",
-			"backendBStatus",
-			false,
-			"Unavailable"
-		);
-	}
+        updateHealth(
+            "backendBDot",
+            "backendBStatus",
+            false,
+            "Unavailable"
+        );
+    }
 }
 
 	function updateHealth(dotID, statusID, healthy, label) {
